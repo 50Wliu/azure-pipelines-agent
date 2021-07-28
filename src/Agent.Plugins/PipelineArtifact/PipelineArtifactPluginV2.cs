@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 using System;
@@ -52,6 +52,7 @@ namespace Agent.Plugins.PipelineArtifact
             public static readonly string AllowPartiallySucceededBuilds = "allowPartiallySucceededBuilds";
             public static readonly string AllowFailedBuilds = "allowFailedBuilds";
             public static readonly string AllowCanceledBuilds = "allowCanceledBuilds";
+            public static readonly string AllowInProgressBuilds = "allowInProgressBuilds";
             public static readonly string ArtifactName = "artifact";
             public static readonly string ItemPattern = "patterns";
         }
@@ -87,6 +88,7 @@ namespace Agent.Plugins.PipelineArtifact
             string allowPartiallySucceededBuilds = context.GetInput(ArtifactEventProperties.AllowPartiallySucceededBuilds, required: false);
             string allowFailedBuilds = context.GetInput(ArtifactEventProperties.AllowFailedBuilds, required: false);
             string allowCanceledBuilds = context.GetInput(ArtifactEventProperties.AllowCanceledBuilds, required: false);
+            string allowInProgressBuilds = context.GetInput(ArtifactEventProperties.AllowInProgressBuilds, required: false);
             string userSpecifiedRunId = context.GetInput(RunId, required: false);
             string defaultWorkingDirectory = context.Variables.GetValueOrDefault("system.defaultworkingdirectory").Value;
 
@@ -128,7 +130,11 @@ namespace Agent.Plugins.PipelineArtifact
             {
                 allowCanceledBuildsBool = false;
             }
-            var resultFilter = GetResultFilter(allowPartiallySucceededBuildsBool, allowFailedBuildsBool, allowCanceledBuildsBool);
+            if (!bool.TryParse(allowInProgressBuilds, out var allowInProgressBuildsBool))
+            {
+                allowInProgressBuildsBool = false;
+            }
+            var resultFilter = GetResultFilter(allowPartiallySucceededBuildsBool, allowFailedBuildsBool, allowCanceledBuildsBool, allowInProgressBuildsBool);
             context.Debug($"BuildResult: {resultFilter.ToString()}");
 
             PipelineArtifactServer server = new PipelineArtifactServer(tracer);
@@ -362,7 +368,7 @@ namespace Agent.Plugins.PipelineArtifact
             }
         }
 
-        private BuildResult GetResultFilter(bool allowPartiallySucceededBuilds, bool allowFailedBuilds, bool allowCanceledBuilds)
+        private BuildResult GetResultFilter(bool allowPartiallySucceededBuilds, bool allowFailedBuilds, bool allowCanceledBuilds, bool allowInProgressBuilds)
         {
             var result = BuildResult.Succeeded;
 
@@ -379,6 +385,11 @@ namespace Agent.Plugins.PipelineArtifact
             if (allowCanceledBuilds)
             {
                 result |= BuildResult.Canceled;
+            }
+            
+            if (allowInProgressBuilds)
+            {
+                result |= BuildResult.InProgress;
             }
 
             return result;
